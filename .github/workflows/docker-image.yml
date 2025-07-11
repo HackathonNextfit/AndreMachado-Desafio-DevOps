@@ -1,0 +1,67 @@
+name: Docker Image CI
+
+on:
+  push:
+    branches: [ "main" ]
+    paths-ignore:
+      - '**.md'
+      - '.gitignore'
+      - 'Makefile'
+      - 'kubernetes/**'
+      - 'k6.js'
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+
+  build:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+  
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v2
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ${{ secrets.AWS_REGION }}
+
+    - name: Login to Amazon ECR Public
+      env:
+        AWS_REGION: ${{ env.AWS_REGION }}
+        ECR_REGISTRY: "public.ecr.aws/j8d2p8u7/desafionext"
+      run: |
+        aws ecr-public get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin $ECR_REGISTRY
+
+    - name: Login to Amazon ECR
+      id: login-ecr
+      uses: aws-actions/amazon-ecr-login@v2
+      with:
+        registries: ${{ env.AWS_ACCOUNT_ID }}
+
+    - name: Build, tag, and push image to Amazon ECR
+      id: build-publish
+      shell: bash
+      env:
+        ECR_REGISTRY: "public.ecr.aws/j8d2p8u7/desafionext"
+        ECR_REPOSITORY: "api-flask"
+      run: |
+        docker build . --file Dockerfile --tag "$ECR_REGISTRY/$ECR_REPOSITORY:${GITHUB_SHA::7}" --tag "$ECR_REGISTRY/$ECR_REPOSITORY:latest"
+
+        docker push "$ECR_REGISTRY/$ECR_REPOSITORY:${GITHUB_SHA::7}"
+
+        docker push "$ECR_REGISTRY/$ECR_REPOSITORY:latest"
+        
+        echo "IMAGE ${GITHUB_SHA::7} is pushed to $ECR_REGISTRY/$ECR_REPOSITORY"
+
+        echo "full_image=$ECR_REGISTRY/$ECR_REPOSITORY:${GITHUB_SHA::7}"
+
+    - name: Deploy to Northflank
+      uses: northflank/deploy-to-northflank@v1
+      with:
+        northflank-api-key: ${{ secrets.NORTHFLANK_API_KEY }}
+        project-id: ${{ secrets.NORTHFLANK_PROJECT_ID }}
+        service-id: ${{ secrets.NORTHFLANK_SERVICE_ID }}
+        image-path: "public.ecr.aws/j8d2p8u7/desafionext/api-flask:latest"
