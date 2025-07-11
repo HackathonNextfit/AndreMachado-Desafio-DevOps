@@ -30,7 +30,7 @@ make dev
 
 ## Avisos para revisão de código
 
-1. O repositório público ECR da AWS já foi deletado para não gerar custos, enão está inacesível;
+1. O repositório público ECR da AWS já foi deletado para não gerar custos, e não está acessível;
 2. A infraestrututura do NorthFlank também já foi deletada, com a mesma justificativa, não gerar custos.
 
 ## Checar logs do nginx localmente
